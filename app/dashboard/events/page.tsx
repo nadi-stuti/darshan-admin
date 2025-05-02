@@ -197,7 +197,7 @@ export default function EventsPage() {
     if (translations) {
       const newTranslations = { ...formData.translations }
       translations.forEach((trans) => {
-        newTranslations[trans.language] = {
+        newTranslations[trans.language as keyof typeof newTranslations] = {
           name: trans.name,
           description: trans.description,
         }
