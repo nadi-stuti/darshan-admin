@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Constants, Database } from '@/database.types'
 import toast from 'react-hot-toast'
+import { destinationSchema, type DestinationFormData } from '@/lib/validations'
 
 type Destination = Database['public']['Tables']['destinations']['Row'] & {
   translations?: {
@@ -20,14 +21,15 @@ export default function DestinationsPage() {
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingDestination, setEditingDestination] = useState<Destination | null>(null)
+  const [formErrors, setFormErrors] = useState<Record<string, string>>({})
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<DestinationFormData>({
     city: '',
-    deity: 'Shiva' as Database['public']['Enums']['Deity'],
+    deity: Constants.public.Enums.Deity[0],
     latitude: 0,
     longitude: 0,
     live_feed: '',
-    sampradaya: 'Vaishnava' as Database['public']['Enums']['Sampradaya'],
+    sampradaya: Constants.public.Enums.Sampradaya[0],
     translations: {
       en: { name: '', location: '', short_description: '', detailed_description: '' },
       hi: { name: '', location: '', short_description: '', detailed_description: '' },
@@ -35,7 +37,7 @@ export default function DestinationsPage() {
       ml: { name: '', location: '', short_description: '', detailed_description: '' },
       ta: { name: '', location: '', short_description: '', detailed_description: '' },
     },
-    images: [] as string[],
+    images: [],
   })
 
   useEffect(() => {
@@ -64,26 +66,30 @@ export default function DestinationsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
+    setFormErrors({})
 
     try {
+      // Validate form data
+      const validatedData = destinationSchema.parse(formData)
+      
       if (editingDestination) {
         // Update existing destination
         const { error: destError } = await supabase
           .from('destinations')
           .update({
-            city: formData.city,
-            deity: formData.deity,
-            latitude: formData.latitude,
-            longitude: formData.longitude,
-            live_feed: formData.live_feed,
-            sampradaya: formData.sampradaya,
+            city: validatedData.city,
+            deity: validatedData.deity,
+            latitude: validatedData.latitude,
+            longitude: validatedData.longitude,
+            live_feed: validatedData.live_feed,
+            sampradaya: validatedData.sampradaya,
           })
           .eq('id', editingDestination.id)
 
         if (destError) throw destError
 
         // Update translations
-        for (const [lang, translation] of Object.entries(formData.translations)) {
+        for (const [lang, translation] of Object.entries(validatedData.translations)) {
           const { error: transError } = await supabase
             .from('destination_translations')
             .update({
@@ -104,12 +110,12 @@ export default function DestinationsPage() {
         const { data: newDest, error: destError } = await supabase
           .from('destinations')
           .insert({
-            city: formData.city,
-            deity: formData.deity,
-            latitude: formData.latitude,
-            longitude: formData.longitude,
-            live_feed: formData.live_feed,
-            sampradaya: formData.sampradaya,
+            city: validatedData.city,
+            deity: validatedData.deity,
+            latitude: validatedData.latitude,
+            longitude: validatedData.longitude,
+            live_feed: validatedData.live_feed,
+            sampradaya: validatedData.sampradaya,
           })
           .select()
           .single()
@@ -117,7 +123,7 @@ export default function DestinationsPage() {
         if (destError) throw destError
 
         // Create translations
-        for (const [lang, translation] of Object.entries(formData.translations)) {
+        for (const [lang, translation] of Object.entries(validatedData.translations)) {
           const { error: transError } = await supabase
             .from('destination_translations')
             .insert({
@@ -133,7 +139,7 @@ export default function DestinationsPage() {
         }
 
         // Create images
-        for (const imageUrl of formData.images) {
+        for (const imageUrl of validatedData.images) {
           const { error: imgError } = await supabase
             .from('destination_images')
             .insert({
@@ -167,7 +173,17 @@ export default function DestinationsPage() {
       })
       fetchDestinations()
     } catch (error: any) {
-      toast.error(error.message)
+      if (error.name === 'ZodError') {
+        const errors: Record<string, string> = {}
+        error.errors.forEach((err: any) => {
+          const path = err.path.join('.')
+          errors[path] = err.message
+        })
+        setFormErrors(errors)
+        toast.error('Please fill in all required fields correctly')
+      } else {
+        toast.error(error.message)
+      }
     } finally {
       setLoading(false)
     }
@@ -284,8 +300,11 @@ export default function DestinationsPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, city: e.target.value }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['city'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   />
+                  {formErrors['city'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['city']}</p>
+                  )}
                 </div>
 
                 <div className="sm:col-span-3">
@@ -303,7 +322,7 @@ export default function DestinationsPage() {
                         deity: e.target.value as Database['public']['Enums']['Deity'],
                       }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['deity'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   >
                     {Object.values(Constants.public.Enums.Deity).map((deity) => (
                       <option key={deity} value={deity}>
@@ -311,6 +330,9 @@ export default function DestinationsPage() {
                       </option>
                     ))}
                   </select>
+                  {formErrors['deity'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['deity']}</p>
+                  )}
                 </div>
 
                 <div className="sm:col-span-3">
@@ -330,8 +352,11 @@ export default function DestinationsPage() {
                         latitude: parseFloat(e.target.value),
                       }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['latitude'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   />
+                  {formErrors['latitude'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['latitude']}</p>
+                  )}
                 </div>
 
                 <div className="sm:col-span-3">
@@ -351,8 +376,11 @@ export default function DestinationsPage() {
                         longitude: parseFloat(e.target.value),
                       }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['longitude'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   />
+                  {formErrors['longitude'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['longitude']}</p>
+                  )}
                 </div>
 
                 <div className="sm:col-span-3">
@@ -370,7 +398,7 @@ export default function DestinationsPage() {
                         sampradaya: e.target.value as Database['public']['Enums']['Sampradaya'],
                       }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['sampradaya'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   >
                     {Object.values(Constants.public.Enums.Sampradaya).map((sampradaya) => (
                       <option key={sampradaya} value={sampradaya}>
@@ -378,6 +406,9 @@ export default function DestinationsPage() {
                       </option>
                     ))}
                   </select>
+                  {formErrors['sampradaya'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['sampradaya']}</p>
+                  )}
                 </div>
 
                 <div className="sm:col-span-3">
@@ -393,8 +424,11 @@ export default function DestinationsPage() {
                     onChange={(e) =>
                       setFormData((prev) => ({ ...prev, live_feed: e.target.value }))
                     }
-                    className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                    className={`block w-full rounded-lg border ${formErrors['live_feed'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                   />
+                  {formErrors['live_feed'] && (
+                    <p className="mt-1 text-sm text-red-600">{formErrors['live_feed']}</p>
+                  )}
                 </div>
               </div>
 
@@ -426,8 +460,11 @@ export default function DestinationsPage() {
                               },
                             }))
                           }
-                          className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                          className={`block w-full rounded-lg border ${formErrors[`${lang}-name`] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                         />
+                        {formErrors[`${lang}-name`] && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors[`${lang}-name`]}</p>
+                        )}
                       </div>
                       <div className="sm:col-span-3">
                         <label
@@ -451,8 +488,11 @@ export default function DestinationsPage() {
                               },
                             }))
                           }
-                          className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                          className={`block w-full rounded-lg border ${formErrors[`${lang}-location`] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                         />
+                        {formErrors[`${lang}-location`] && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors[`${lang}-location`]}</p>
+                        )}
                       </div>
                       <div className="sm:col-span-6">
                         <label
@@ -476,8 +516,11 @@ export default function DestinationsPage() {
                               },
                             }))
                           }
-                          className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                          className={`block w-full rounded-lg border ${formErrors[`${lang}-short-description`] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                         />
+                        {formErrors[`${lang}-short-description`] && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors[`${lang}-short-description`]}</p>
+                        )}
                       </div>
                       <div className="sm:col-span-6">
                         <label
@@ -501,8 +544,11 @@ export default function DestinationsPage() {
                               },
                             }))
                           }
-                          className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                          className={`block w-full rounded-lg border ${formErrors[`${lang}-detailed-description`] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                         />
+                        {formErrors[`${lang}-detailed-description`] && (
+                          <p className="mt-1 text-sm text-red-600">{formErrors[`${lang}-detailed-description`]}</p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -553,8 +599,11 @@ export default function DestinationsPage() {
                           images: [...prev.images, e.target.value],
                         }))
                       }
-                      className="block w-full rounded-lg border border-gray-300 px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors"
+                      className={`block w-full rounded-lg border ${formErrors['new-image'] ? 'border-red-300' : 'border-gray-300'} px-4 py-2.5 text-gray-900 shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/20 transition-colors`}
                     />
+                    {formErrors['new-image'] && (
+                      <p className="mt-1 text-sm text-red-600">{formErrors['new-image']}</p>
+                    )}
                   </div>
                 </div>
               </div>

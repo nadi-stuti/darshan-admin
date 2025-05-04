@@ -51,13 +51,6 @@ export type Database = {
             referencedRelation: "destinations"
             referencedColumns: ["id"]
           },
-          {
-            foreignKeyName: "destination_images_destination_image_fkey"
-            columns: ["destination_id"]
-            isOneToOne: false
-            referencedRelation: "destinations"
-            referencedColumns: ["id"]
-          },
         ]
       }
       destination_translations: {
@@ -198,30 +191,33 @@ export type Database = {
       }
       events: {
         Row: {
-          daily: boolean | null
+          daily: boolean
           date: string | null
           destination_id: string
           end_time: string
+          event_image: string | null
           id: string
-          isPopular: boolean | null
+          isPopular: boolean
           start_time: string
         }
         Insert: {
-          daily?: boolean | null
+          daily?: boolean
           date?: string | null
           destination_id: string
           end_time: string
+          event_image?: string | null
           id?: string
-          isPopular?: boolean | null
+          isPopular?: boolean
           start_time: string
         }
         Update: {
-          daily?: boolean | null
+          daily?: boolean
           date?: string | null
           destination_id?: string
           end_time?: string
+          event_image?: string | null
           id?: string
-          isPopular?: boolean | null
+          isPopular?: boolean
           start_time?: string
         }
         Relationships: [
