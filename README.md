@@ -2,6 +2,9 @@
 
 A Next.js admin dashboard for managing destinations, events, and user data.
 
+# Todo
+- Add features for river darshar
+
 ## Features
 
 - Email and password authentication
